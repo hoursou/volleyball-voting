@@ -1,3 +1,8 @@
+// Initialize EmailJS (add your User ID here)
+(function() {
+    emailjs.init("YOUR_USER_ID_HERE"); // Replace with your actual EmailJS User ID
+})();
+
 class VolleyballLoginSystem {
     constructor() {
         this.users = this.loadUsers();
@@ -54,43 +59,91 @@ class VolleyballLoginSystem {
         // 3. Create an email template
         // 4. Get your User ID, Service ID, and Template ID
         
-        // For now, we'll use a fallback method
+        // For GitHub Pages deployment, configure EmailJS
         this.emailConfig = {
             enabled: false, // Set to true when EmailJS is configured
-            serviceId: 'your_service_id',
-            templateId: 'your_template_id', 
-            userId: 'your_user_id',
+            serviceId: 'YOUR_SERVICE_ID_HERE', // Replace with your EmailJS Service ID
+            templateId: 'YOUR_TEMPLATE_ID_HERE', // Replace with your EmailJS Template ID
+            userId: 'YOUR_USER_ID_HERE', // Replace with your EmailJS User ID
             adminEmail: 'xonevc@yahoo.com'
         };
     }
     
     async sendRequestEmail(request) {
-        if (!this.emailConfig.enabled) {
-            console.log('Email service not configured. Request stored locally.');
-            return this.showNotification('Request submitted! Admin will review locally.', 'success');
+        // For GitHub Pages, try EmailJS first (automatic)
+        if (this.emailConfig.enabled) {
+            try {
+                const templateParams = {
+                    to_email: this.emailConfig.adminEmail,
+                    from_name: request.name,
+                    from_phone: request.phone || 'Not provided',
+                    request_reason: request.reason,
+                    request_message: request.message || 'No additional message',
+                    request_date: new Date(request.requestedAt).toLocaleString(),
+                    request_id: request.id
+                };
+                
+                // Send email using EmailJS
+                const response = await emailjs.send(
+                    this.emailConfig.serviceId, 
+                    this.emailConfig.templateId, 
+                    templateParams, 
+                    this.emailConfig.userId
+                );
+                
+                console.log('Email sent successfully:', response);
+                this.showNotification('Request submitted! Admin has been notified via email.', 'success');
+                return;
+                
+            } catch (error) {
+                console.error('EmailJS send failed:', error);
+                this.showNotification('Request submitted! (Email notification failed, trying fallback...)', 'warning');
+            }
         }
         
+        // Fallback to mailto (for local testing)
+        const mailtoResult = this.sendMailtoEmail(request);
+        
+        if (mailtoResult) {
+            this.showNotification('Request submitted! Opening email to notify admin...', 'success');
+            return;
+        }
+        
+        // Final fallback
+        this.showNotification('Request submitted! Admin will review locally.', 'success');
+    }
+    
+    sendMailtoEmail(request) {
         try {
-            // This would send an email using EmailJS
-            // You need to configure EmailJS first
-            const templateParams = {
-                to_email: this.emailConfig.adminEmail,
-                from_name: request.name,
-                from_phone: request.phone || 'Not provided',
-                request_reason: request.reason,
-                request_message: request.message || 'No additional message',
-                request_date: new Date(request.requestedAt).toLocaleString(),
-                request_id: request.id
-            };
+            const subject = encodeURIComponent('New Volleyball Access Request');
+            const body = encodeURIComponent(
+                `Hello Admin,
+
+You have received a new access request for the Volleyball Voting System:
+
+Request Details:
+- Name: ${request.name}
+- Phone: ${request.phone || 'Not provided'}
+- Reason: ${request.reason}
+- Message: ${request.message || 'No additional message'}
+- Request Date: ${new Date(request.requestedAt).toLocaleString()}
+- Request ID: ${request.id}
+
+Please review this request in the admin panel and approve or deny access.
+
+Best regards,
+Volleyball Voting System`
+            );
             
-            // This would be the actual EmailJS send call
-            // await emailjs.send(this.emailConfig.serviceId, this.emailConfig.templateId, templateParams, this.emailConfig.userId);
+            const mailtoUrl = `mailto:${this.emailConfig.adminEmail}?subject=${subject}&body=${body}`;
             
-            this.showNotification('Request submitted! Admin has been notified via email.', 'success');
+            // Open email client
+            window.location.href = mailtoUrl;
             
+            return true; // Success
         } catch (error) {
-            console.error('Email send failed:', error);
-            this.showNotification('Request submitted! (Email notification failed, stored locally)', 'warning');
+            console.error('Mailto failed:', error);
+            return false; // Failed
         }
     }
     
