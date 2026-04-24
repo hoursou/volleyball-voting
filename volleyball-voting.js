@@ -1,10 +1,14 @@
 class VolleyballVotingSystem {
     constructor() {
         this.sessions = this.loadSessions();
+        this.users = this.loadUsers();
         this.currentSessionId = null;
+        this.currentUser = null;
+        this.isLoggedIn = false;
         
         this.initializeElements();
         this.bindEvents();
+        this.checkLoginStatus();
         this.renderSessions();
         this.startCountdownTimer();
     }
@@ -23,7 +27,11 @@ class VolleyballVotingSystem {
     
     bindEvents() {
         this.elements.createSessionBtn.addEventListener('click', () => {
-            this.openModal('createSessionModal');
+            if (this.canCreateSessions()) {
+                this.openModal('createSessionModal');
+            } else {
+                this.showLoginPrompt();
+            }
         });
         
         this.elements.createSessionForm.addEventListener('submit', (e) => {
@@ -51,11 +59,129 @@ class VolleyballVotingSystem {
         return stored ? JSON.parse(stored) : [];
     }
     
+    loadUsers() {
+        const stored = localStorage.getItem('volleyball_users');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+        
+        // Create default admin user
+        const defaultUsers = [
+            {
+                id: 'admin-001',
+                name: 'System Admin',
+                phone: '',
+                role: 'admin',
+                canCreateSessions: true,
+                addedAt: new Date().toISOString(),
+                addedBy: 'system'
+            }
+        ];
+        
+        this.saveUsers(defaultUsers);
+        return defaultUsers;
+    }
+    
+    saveUsers(users = this.users) {
+        localStorage.setItem('volleyball_users', JSON.stringify(users));
+    }
+    
     saveSessions() {
         localStorage.setItem('volleyball_sessions', JSON.stringify(this.sessions));
     }
     
+    checkLoginStatus() {
+        // Check URL parameters first (for GitHub Pages compatibility)
+        const urlParams = new URLSearchParams(window.location.search);
+        const adminCode = urlParams.get('admin');
+        
+        if (adminCode) {
+            this.loginWithCode(adminCode);
+            return;
+        }
+        
+        // Then check localStorage
+        const loginData = localStorage.getItem('volleyball_admin_login');
+        if (loginData) {
+            try {
+                const { userId, timestamp } = JSON.parse(loginData);
+                const now = new Date().getTime();
+                
+                // Auto-logout after 24 hours
+                if (now - timestamp < 24 * 60 * 60 * 1000) {
+                    this.loginSuccess(userId);
+                } else {
+                    localStorage.removeItem('volleyball_admin_login');
+                }
+            } catch (e) {
+                // Clear corrupted localStorage data
+                localStorage.removeItem('volleyball_admin_login');
+            }
+        }
+    }
+    
+    loginWithCode(adminCode) {
+        // Default admin codes
+        const validCodes = {
+            'volleyball2024': 'admin-001',
+            'admin123': 'admin-001',
+            'moderator2024': 'moderator-001'
+        };
+        
+        if (validCodes[adminCode]) {
+            const userId = validCodes[adminCode];
+            this.loginSuccess(userId);
+            // Remove admin parameter from URL for security
+            const url = new URL(window.location);
+            url.searchParams.delete('admin');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+    }
+    
+    loginSuccess(userId) {
+        this.currentUser = this.users.find(u => u.id === userId);
+        this.isLoggedIn = true;
+        
+        // Save login session
+        localStorage.setItem('volleyball_admin_login', JSON.stringify({
+            userId: userId,
+            timestamp: new Date().getTime()
+        }));
+        
+        // Update UI
+        this.updateCreateSessionButton();
+        this.showNotification(`Logged in as ${this.currentUser.name}`, 'success');
+    }
+    
+    canCreateSessions() {
+        if (!this.isLoggedIn) return false;
+        
+        return this.currentUser.role === 'admin' || 
+               this.currentUser.role === 'moderator' || 
+               this.currentUser.canCreateSessions;
+    }
+    
+    updateCreateSessionButton() {
+        if (!this.elements.createSessionBtn) return;
+        
+        if (this.canCreateSessions()) {
+            this.elements.createSessionBtn.style.display = 'block';
+            this.elements.createSessionBtn.onclick = () => this.openModal('createSessionModal');
+        } else {
+            this.elements.createSessionBtn.style.display = 'none';
+        }
+    }
+    
+    showLoginPrompt() {
+        this.showNotification('Please login to create sessions. Use ?admin=volleyball2024 in URL', 'warning');
+    }
+    
     createSession() {
+        if (!this.canCreateSessions()) {
+            this.showLoginPrompt();
+            return;
+        }
+        
         const sessionNumber = document.getElementById('sessionNumber').value;
         const sessionDateTime = new Date(document.getElementById('sessionDateTime').value);
         const maxPlayers = parseInt(document.getElementById('maxPlayers').value);
@@ -68,6 +194,7 @@ class VolleyballVotingSystem {
             players: [],
             waitingList: [],
             status: 'upcoming',
+            createdBy: this.currentUser.name,
             createdAt: new Date().toISOString()
         };
         
