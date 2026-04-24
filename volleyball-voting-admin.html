@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volleyball Session Voting - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .session-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .session-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .session-card.active {
+            border-left-color: #10b981;
+        }
+        
+        .session-card.full {
+            border-left-color: #ef4444;
+        }
+        
+        .session-card.upcoming {
+            border-left-color: #3b82f6;
+        }
+        
+        .player-badge {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .waiting-list-item {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+        
+        .countdown {
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .user-role-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .role-admin {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+        
+        .role-moderator {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+        
+        .role-user {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1d4ed8;
+        }
+        
+        .login-section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 1rem;
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .admin-panel {
+            display: none;
+        }
+        
+        .admin-panel.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Section -->
+    <div id="loginSection" class="login-section">
+        <div class="login-card">
+            <div class="text-center mb-6">
+                <i class="fas fa-volleyball-ball text-4xl text-purple-600 mb-3"></i>
+                <h2 class="text-2xl font-bold text-gray-800">Admin Login</h2>
+                <p class="text-gray-600">Volleyball Voting System</p>
+            </div>
+            
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Admin Code</label>
+                    <input 
+                        type="password" 
+                        id="adminCode" 
+                        required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Enter admin code"
+                    >
+                </div>
+                
+                <button type="submit" class="w-full btn-primary text-white py-3 rounded-lg font-semibold">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Login
+                </button>
+            </form>
+            
+            <div class="mt-4 text-center">
+                <p class="text-sm text-gray-500">Default admin code: <code class="bg-gray-100 px-2 py-1 rounded">volleyball2024</code></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel">
+        <div class="container max-w-7xl mx-auto p-4">
+            <!-- Header -->
+            <div class="glass-morphism p-6 mb-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-white mb-2">
+                            <i class="fas fa-volleyball-ball mr-3"></i>Volleyball Admin Panel
+                        </h1>
+                        <p class="text-gray-200">Manage sessions and user permissions</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-white">
+                            <i class="fas fa-user-shield mr-2"></i>
+                            <span id="currentUser">Admin</span>
+                        </span>
+                        <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition">
+                            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- User Management Section -->
+            <div class="glass-morphism p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-white">
+                        <i class="fas fa-users-cog mr-2"></i>User Management
+                    </h2>
+                    <button onclick="openAddUserModal()" class="btn-primary px-4 py-2 text-white rounded-lg font-semibold">
+                        <i class="fas fa-user-plus mr-2"></i>Add User
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-white">
+                        <thead>
+                            <tr class="border-b border-white/20">
+                                <th class="text-left py-3 px-4">Name</th>
+                                <th class="text-left py-3 px-4">Phone</th>
+                                <th class="text-left py-3 px-4">Role</th>
+                                <th class="text-left py-3 px-4">Can Create Sessions</th>
+                                <th class="text-left py-3 px-4">Added</th>
+                                <th class="text-center py-3 px-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Sessions Grid -->
+            <div class="glass-morphism p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-white">
+                        <i class="fas fa-calendar-alt mr-2"></i>Session Management
+                    </h2>
+                    <button id="createSessionBtn" class="btn-primary px-6 py-3 text-white rounded-lg font-semibold">
+                        <i class="fas fa-plus mr-2"></i>Create New Session
+                    </button>
+                </div>
+            </div>
+            
+            <div id="sessionsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Sessions will be dynamically added here -->
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="glass-morphism p-12 text-center">
+                <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
+                <h3 class="text-2xl font-bold text-white mb-2">No Sessions Yet</h3>
+                <p class="text-gray-300 mb-6">Create your first volleyball session to get started!</p>
+                <button onclick="document.getElementById('createSessionBtn').click()" class="btn-primary px-6 py-3 text-white rounded-lg font-semibold">
+                    <i class="fas fa-plus mr-2"></i>Create Session
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Session Modal -->
+    <div id="createSessionModal" class="modal">
+        <div class="modal-content glass-morphism p-8 max-w-md w-full mx-4">
+            <h3 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-plus-circle mr-2"></i>Create New Session
+            </h3>
+            
+            <form id="createSessionForm">
+                <div class="mb-4">
+                    <label class="block text-white text-sm font-medium mb-2">Session Number</label>
+                    <input 
+                        type="number" 
+                        id="sessionNumber" 
+                        required
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                        placeholder="e.g., 1, 2, 3..."
+                    >
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-white text-sm font-medium mb-2">Date & Time</label>
+                    <input 
+                        type="datetime-local" 
+                        id="sessionDateTime" 
+                        required
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    >
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-white text-sm font-medium mb-2">Maximum Players</label>
+                    <input 
+                        type="number" 
+                        id="maxPlayers" 
+                        min="2" 
+                        max="20" 
+                        value="12"
+                        required
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    >
+                </div>
+                
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 btn-success px-6 py-3 text-white rounded-lg font-semibold">
+                        <i class="fas fa-check mr-2"></i>Create Session
+                    </button>
+                    <button type="button" onclick="closeModal('createSessionModal')" class="flex-1 bg-gray-500 hover:bg-gray-600 px-6 py-3 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content glass-morphism p-8 max-w-md w-full mx-4">
+            <h3 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-user-plus mr-2"></i>Add User
+            </h3>
+            
+            <form id="addUserForm">
+                <div class="mb-4">
+                    <label class="block text-white text-sm font-medium mb-2">Name</label>
+                    <input 
+                        type="text" 
+                        id="newUserName" 
+                        required
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                        placeholder="Enter user name"
+                    >
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-white text-sm font-medium mb-2">WhatsApp Number</label>
+                    <input 
+                        type="tel" 
+                        id="newUserPhone" 
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                        placeholder="+1234567890"
+                    >
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-white text-sm font-medium mb-2">Role</label>
+                    <select 
+                        id="newUserRole" 
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    >
+                        <option value="user">User - Can join sessions only</option>
+                        <option value="moderator">Moderator - Can create sessions</option>
+                        <option value="admin">Admin - Full access</option>
+                    </select>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 btn-success px-6 py-3 text-white rounded-lg font-semibold">
+                        <i class="fas fa-check mr-2"></i>Add User
+                    </button>
+                    <button type="button" onclick="closeModal('addUserModal')" class="flex-1 bg-gray-500 hover:bg-gray-600 px-6 py-3 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Join Session Modal -->
+    <div id="joinSessionModal" class="modal">
+        <div class="modal-content glass-morphism p-8 max-w-md w-full mx-4">
+            <h3 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-user-plus mr-2"></i>Join Session
+            </h3>
+            
+            <form id="joinSessionForm">
+                <div class="mb-4">
+                    <label class="block text-white text-sm font-medium mb-2">Your Name</label>
+                    <input 
+                        type="text" 
+                        id="playerName" 
+                        required
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                        placeholder="Enter your name"
+                    >
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-white text-sm font-medium mb-2">WhatsApp Number (Optional)</label>
+                    <input 
+                        type="tel" 
+                        id="playerPhone" 
+                        class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                        placeholder="+1234567890"
+                    >
+                </div>
+                
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 btn-success px-6 py-3 text-white rounded-lg font-semibold">
+                        <i class="fas fa-check mr-2"></i>Join Session
+                    </button>
+                    <button type="button" onclick="closeModal('joinSessionModal')" class="flex-1 bg-gray-500 hover:bg-gray-600 px-6 py-3 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="volleyball-voting-admin.js"></script>
+</body>
+</html>
