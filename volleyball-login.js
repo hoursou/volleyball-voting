@@ -35,6 +35,15 @@ class VolleyballLoginSystem {
             e.preventDefault();
             this.submitRequest();
         });
+        
+        // Add real-time user detection
+        this.elements.userName.addEventListener('input', (e) => {
+            this.detectUserRole(e.target.value.trim());
+        });
+        
+        this.elements.accessCode.addEventListener('input', (e) => {
+            this.validateAccessCode(e.target.value.trim());
+        });
     }
     
     checkRedirect() {
@@ -264,8 +273,16 @@ Volleyball Voting System`
                 'volleyball-voting.html';
         }
         
-        // Add admin parameter for seamless login
-        const finalUrl = `${targetPage}?admin=${encodeURIComponent(this.elements.accessCode.value)}`;
+        // Add admin parameter only for admin users using system codes
+        let finalUrl = targetPage;
+        
+        // Check if user is admin and using a hardcoded system code
+        const isSystemAdminCode = (user.role === 'admin' || user.role === 'moderator') && 
+                                !user.accessCode;
+        
+        if (isSystemAdminCode) {
+            finalUrl = `${targetPage}?admin=${encodeURIComponent(this.elements.accessCode.value)}`;
+        }
         
         this.showNotification(`Welcome back, ${user.name}! Redirecting...`, 'success');
         
@@ -332,6 +349,119 @@ Volleyball Voting System`
         
         this.hideRequestAccess();
         this.elements.requestForm.reset();
+    }
+    
+    detectUserRole(userName) {
+        const userInfo = document.getElementById('userInfo');
+        const roleIndicator = document.getElementById('roleIndicator');
+        
+        if (!userName) {
+            if (userInfo) userInfo.style.display = 'none';
+            if (roleIndicator) roleIndicator.className = '';
+            return;
+        }
+        
+        const user = this.users.find(u => 
+            u.name.toLowerCase() === userName.toLowerCase()
+        );
+        
+        if (user) {
+            // User found - display role information
+            if (userInfo) {
+                userInfo.style.display = 'block';
+                userInfo.innerHTML = `
+                    <div class="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-user-check text-green-600 mr-2"></i>
+                            <span class="text-green-800 font-medium">${user.name}</span>
+                        </div>
+                        <span class="px-2 py-1 bg-${this.getRoleColor(user.role)}-100 text-${this.getRoleColor(user.role)}-800 text-xs font-medium rounded-full">
+                            ${user.role.toUpperCase()}
+                        </span>
+                    </div>
+                `;
+            }
+            
+            if (roleIndicator) {
+                roleIndicator.className = `border-l-4 border-${this.getRoleColor(user.role)}-500 bg-${this.getRoleColor(user.role)}-50`;
+            }
+            
+            this.showNotification(`User found: ${user.name} (${user.role})`, 'info');
+        } else {
+            // User not found
+            if (userInfo) {
+                userInfo.style.display = 'block';
+                userInfo.innerHTML = `
+                    <div class="flex items-center p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <i class="fas fa-user-slash text-yellow-600 mr-2"></i>
+                        <span class="text-yellow-800">User not found. Please request access first.</span>
+                    </div>
+                `;
+            }
+            
+            if (roleIndicator) {
+                roleIndicator.className = 'border-l-4 border-yellow-500 bg-yellow-50';
+            }
+        }
+    }
+    
+    validateAccessCode(accessCode) {
+        const codeIndicator = document.getElementById('codeIndicator');
+        
+        if (!accessCode) {
+            if (codeIndicator) codeIndicator.style.display = 'none';
+            return;
+        }
+        
+        const userName = this.elements.userName.value.trim();
+        if (!userName) {
+            if (codeIndicator) codeIndicator.style.display = 'none';
+            return;
+        }
+        
+        const user = this.users.find(u => 
+            u.name.toLowerCase() === userName.toLowerCase()
+        );
+        
+        if (user) {
+            if (user.accessCode && user.accessCode === accessCode) {
+                // Correct individual access code
+                if (codeIndicator) {
+                    codeIndicator.style.display = 'block';
+                    codeIndicator.className = 'mt-2 p-2 bg-green-50 border border-green-200 rounded text-green-800 text-sm';
+                    codeIndicator.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Access code verified!';
+                }
+            } else {
+                // Check hardcoded codes
+                const validCodes = {
+                    'volleyball2024': 'admin',
+                    'admin123': 'admin',
+                    'moderator2024': 'moderator'
+                };
+                
+                if (validCodes[accessCode]) {
+                    if (codeIndicator) {
+                        codeIndicator.style.display = 'block';
+                        codeIndicator.className = 'mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-blue-800 text-sm';
+                        codeIndicator.innerHTML = '<i class="fas fa-shield-alt mr-1"></i> System access code detected';
+                    }
+                } else {
+                    if (codeIndicator) {
+                        codeIndicator.style.display = 'block';
+                        codeIndicator.className = 'mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-800 text-sm';
+                        codeIndicator.innerHTML = '<i class="fas fa-times-circle mr-1"></i> Invalid access code';
+                    }
+                }
+            }
+        }
+    }
+    
+    getRoleColor(role) {
+        switch (role) {
+            case 'admin': return 'purple';
+            case 'moderator': return 'blue';
+            default: return 'gray';
+        }
     }
     
     showNotification(message, type = 'info') {
