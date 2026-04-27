@@ -1,15 +1,9 @@
-// Initialize EmailJS (add your User ID here)
-(function() {
-    emailjs.init("hoursou"); // Your actual EmailJS User ID
-})();
-
-class VolleyballLoginSystem {
+class VolleyballMobileLoginSystem {
     constructor() {
         this.users = this.loadUsers();
         this.initializeElements();
         this.bindEvents();
         this.checkRedirect();
-        this.initializeEmailService();
     }
     
     initializeElements() {
@@ -45,122 +39,6 @@ class VolleyballLoginSystem {
         if (redirectUrl) {
             // Show notification about redirect
             this.showNotification('Please login to continue to requested page', 'info');
-        }
-    }
-    
-    initializeEmailService() {
-        // Initialize EmailJS (you'll need to set up an EmailJS account)
-        // For demo purposes, this shows the structure
-        // In production, replace with your actual EmailJS credentials
-        
-        // EmailJS configuration (you'll need to set this up)
-        // 1. Sign up at https://www.emailjs.com/
-        // 2. Create an email service
-        // 3. Create an email template
-        // 4. Get your User ID, Service ID, and Template ID
-        
-        // For GitHub Pages deployment, configure EmailJS
-        this.emailConfig = {
-            enabled: true, // Set to true when EmailJS is configured
-            serviceId: 'service_e82cvej', // Replace with your EmailJS Service ID
-            templateId: 'template_8zq56qo', // Replace with your EmailJS Template ID
-            userId: 'hoursou', // Replace with your EmailJS User ID
-            adminEmail: 'hoursou@gmail.com'
-        };
-    }
-    
-    async sendRequestEmail(request) {
-        console.log('Starting email send process...');
-        console.log('EmailJS available:', typeof emailjs !== 'undefined');
-        console.log('Email config enabled:', this.emailConfig.enabled);
-        
-        // For GitHub Pages, try EmailJS first (automatic)
-        if (this.emailConfig.enabled && typeof emailjs !== 'undefined') {
-            try {
-                console.log('Attempting EmailJS send...');
-                console.log('Service ID:', this.emailConfig.serviceId);
-                console.log('Template ID:', this.emailConfig.templateId);
-                console.log('User ID:', this.emailConfig.userId);
-                
-                // Gmail EmailJS template parameters - standard format
-                const templateParams = {
-                    from_name: request.name,
-                    to_name: "Admin",
-                    from_email: "noreply@volleyball.com",
-                    to_email: this.emailConfig.adminEmail,
-                    subject: "New Volleyball Access Request",
-                    message: `New access request from ${request.name}\n\nPhone: ${request.phone || 'Not provided'}\nReason: ${request.reason}\nMessage: ${request.message || 'No additional message'}\nDate: ${new Date(request.requestedAt).toLocaleString()}\nRequest ID: ${request.id}`,
-                    reply_to: this.emailConfig.adminEmail
-                };
-                
-                console.log('Template params:', templateParams);
-                
-                // Send email using EmailJS
-                const response = await emailjs.send(
-                    this.emailConfig.serviceId, 
-                    this.emailConfig.templateId, 
-                    templateParams, 
-                    this.emailConfig.userId
-                );
-                
-                console.log('Email sent successfully:', response);
-                this.showNotification('Request submitted! Admin has been notified via email.', 'success');
-                return;
-                
-            } catch (error) {
-                console.error('EmailJS send failed:', error);
-                console.error('Error details:', error.message);
-                this.showNotification('Request submitted! (Email notification failed, trying fallback...)', 'warning');
-            }
-        } else {
-            console.log('EmailJS not available or not enabled');
-        }
-        
-        // Fallback to mailto (for local testing)
-        console.log('Trying mailto fallback...');
-        const mailtoResult = this.sendMailtoEmail(request);
-        
-        if (mailtoResult) {
-            this.showNotification('Request submitted! Opening email to notify admin...', 'success');
-            return;
-        }
-        
-        // Final fallback
-        console.log('Using final fallback - local storage only');
-        this.showNotification('Request submitted! Admin will review locally.', 'success');
-    }
-    
-    sendMailtoEmail(request) {
-        try {
-            const subject = encodeURIComponent('New Volleyball Access Request');
-            const body = encodeURIComponent(
-                `Hello Admin,
-
-You have received a new access request for the Volleyball Voting System:
-
-Request Details:
-- Name: ${request.name}
-- Phone: ${request.phone || 'Not provided'}
-- Reason: ${request.reason}
-- Message: ${request.message || 'No additional message'}
-- Request Date: ${new Date(request.requestedAt).toLocaleString()}
-- Request ID: ${request.id}
-
-Please review this request in the admin panel and approve or deny access.
-
-Best regards,
-Volleyball Voting System`
-            );
-            
-            const mailtoUrl = `mailto:${this.emailConfig.adminEmail}?subject=${subject}&body=${body}`;
-            
-            // Open email client
-            window.location.href = mailtoUrl;
-            
-            return true; // Success
-        } catch (error) {
-            console.error('Mailto failed:', error);
-            return false; // Failed
         }
     }
     
@@ -248,52 +126,55 @@ Volleyball Voting System`
         // Redirect based on user role and redirect parameter
         let targetPage;
         if (redirectUrl && redirectUrl !== 'null' && redirectUrl !== '') {
-            // Use the redirect URL if provided
+            // Use redirect URL if provided
             targetPage = redirectUrl.startsWith('/') ? redirectUrl.substring(1) : redirectUrl;
         } else {
             // Default redirect based on user role
             targetPage = user.role === 'admin' ? 
                 'volleyball-voting-admin.html' : 
-                'volleyball-voting.html';
+                'volleyball-mobile.html';
         }
         
         // Add admin parameter for seamless login
         const finalUrl = `${targetPage}?admin=${encodeURIComponent(this.elements.accessCode.value)}`;
         
         this.showNotification(`Welcome back, ${user.name}! Redirecting...`, 'success');
+        this.vibrate();
         
         setTimeout(() => {
             window.location.href = finalUrl;
         }, 1500);
     }
     
-    selectUserType(type) {
-        if (type === 'user') {
-            // Redirect to regular voting as guest
-            window.location.href = 'volleyball-voting.html';
-        } else {
-            // Show admin login
-            this.showAdminLogin();
-        }
+    continueAsGuest() {
+        // Redirect to mobile voting as guest
+        this.showNotification('Continuing as guest...', 'info');
+        this.vibrate();
+        
+        setTimeout(() => {
+            window.location.href = 'volleyball-mobile.html';
+        }, 1000);
     }
     
     showAdminLogin() {
         // Scroll to login form
-        this.elements.loginForm.scrollIntoView({ behavior: 'smooth' });
+        this.elements.userName.scrollIntoView({ behavior: 'smooth' });
         this.elements.accessCode.focus();
+        this.vibrate();
     }
     
     showRequestAccess() {
-        document.getElementById('requestAccessModal').classList.remove('hidden');
-        document.getElementById('requestAccessModal').classList.add('flex');
+        document.getElementById('requestAccessModal').classList.add('show');
+        this.vibrate();
     }
     
     hideRequestAccess() {
+        document.getElementById('requestAccessModal').classList.remove('show');
         document.getElementById('requestAccessModal').classList.add('hidden');
-        document.getElementById('requestAccessModal').classList.remove('flex');
+        this.vibrate();
     }
     
-    async submitRequest() {
+    submitRequest() {
         const name = this.elements.requestName.value.trim();
         const phone = this.elements.requestPhone.value.trim();
         const reason = this.elements.requestReason.value;
@@ -320,9 +201,8 @@ Volleyball Voting System`
         requests.push(request);
         localStorage.setItem('volleyball_requests', JSON.stringify(requests));
         
-        // Send email notification to admin
-        await this.sendRequestEmail(request);
-        
+        this.showNotification('Access request sent! Admin will review your request.', 'success');
+        this.vibrate();
         this.hideRequestAccess();
         this.elements.requestForm.reset();
     }
@@ -332,7 +212,7 @@ Volleyball Voting System`
         const bgColor = type === 'success' ? 'bg-green-500' : 
                         type === 'error' ? 'bg-red-500' : 'bg-blue-500';
         
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 fade-in`;
+        notification.className = `fixed top-4 right-4 left-4 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg z-50 fade-in`;
         notification.innerHTML = `
             <div class="flex items-center">
                 <i class="fas fa-${type === 'success' ? 'check-circle' : 
@@ -349,20 +229,30 @@ Volleyball Voting System`
             setTimeout(() => notification.remove(), 500);
         }, 3000);
     }
+    
+    vibrate() {
+        if ('vibrate' in navigator) {
+            navigator.vibrate(50);
+        }
+    }
 }
 
 // Global functions for HTML onclick handlers
-function selectUserType(type) {
-    loginSystem.selectUserType(type);
-}
-
 function showRequestAccess() {
-    loginSystem.showRequestAccess();
+    mobileLoginSystem.showRequestAccess();
 }
 
 function hideRequestAccess() {
-    loginSystem.hideRequestAccess();
+    mobileLoginSystem.hideRequestAccess();
 }
 
-// Initialize login system
-const loginSystem = new VolleyballLoginSystem();
+function continueAsGuest() {
+    mobileLoginSystem.continueAsGuest();
+}
+
+function showAdminLogin() {
+    mobileLoginSystem.showAdminLogin();
+}
+
+// Initialize mobile login system
+const mobileLoginSystem = new VolleyballMobileLoginSystem();

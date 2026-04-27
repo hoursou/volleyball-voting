@@ -397,7 +397,7 @@
     </div>
     
     <!-- Floating Action Button -->
-    <button class="floating-btn" onclick="openCreateModal()">
+    <button class="floating-btn" onclick="if(volleyballApp.canCreateSessions()) volleyballApp.openModal('createSessionModal'); else volleyballApp.showLoginPrompt()">
         <i class="fas fa-plus"></i>
     </button>
     

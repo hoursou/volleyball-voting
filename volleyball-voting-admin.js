@@ -19,6 +19,10 @@ class VolleyballAdminSystem {
             adminCode: document.getElementById('adminCode'),
             currentUser: document.getElementById('currentUser'),
             usersTableBody: document.getElementById('usersTableBody'),
+            requestsTableBody: document.getElementById('requestsTableBody'),
+            requestCount: document.getElementById('requestCount'),
+            noRequestsMessage: document.getElementById('noRequestsMessage'),
+            refreshRequestsBtn: document.getElementById('refreshRequestsBtn'),
             sessionsContainer: document.getElementById('sessionsContainer'),
             emptyState: document.getElementById('emptyState'),
             createSessionBtn: document.getElementById('createSessionBtn'),
@@ -35,6 +39,10 @@ class VolleyballAdminSystem {
         this.elements.loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
             this.login();
+        });
+        
+        this.elements.refreshRequestsBtn.addEventListener('click', () => {
+            this.loadRequests();
         });
         
         this.elements.createSessionBtn.addEventListener('click', () => {
@@ -174,19 +182,20 @@ class VolleyballAdminSystem {
             timestamp: new Date().getTime()
         }));
         
-        // Update UI
+        this.isLoggedIn = true;
         this.elements.loginSection.style.display = 'none';
         this.elements.adminPanel.classList.add('show');
         this.elements.currentUser.textContent = this.currentUser.name;
-        
-        // Show/hide create session button based on permissions
-        this.updateCreateSessionButton();
+        this.showNotification('Welcome back, ' + this.currentUser.name + '!', 'success');
+        this.loadUsers();
+        this.loadSessions();
+        this.loadRequests();
         
         // Render data
         this.renderUsers();
         this.renderSessions();
+        this.renderRequests();
         this.startCountdownTimer();
-        
         this.showNotification(`Welcome back, ${this.currentUser.name}!`, 'success');
     }
     
@@ -651,6 +660,128 @@ class VolleyballAdminSystem {
                 this.renderSessions();
             }
         }, 60000); // Update every minute
+    }
+    
+    loadRequests() {
+        console.log('Loading access requests...');
+        console.log('Requests table body:', this.elements.requestsTableBody);
+        console.log('Request count element:', this.elements.requestCount);
+        console.log('No requests message:', this.elements.noRequestsMessage);
+        
+        const requests = JSON.parse(localStorage.getItem('volleyball_requests') || '[]');
+        console.log('Found requests:', requests);
+        this.requests = requests;
+        this.renderRequests();
+    }
+    
+    renderRequests() {
+        const requests = this.requests.filter(r => r.status === 'pending');
+        
+        if (requests.length === 0) {
+            this.elements.requestsTableBody.innerHTML = '';
+            this.elements.noRequestsMessage.style.display = 'block';
+            this.elements.requestCount.textContent = '0';
+            return;
+        }
+        
+        this.elements.noRequestsMessage.style.display = 'none';
+        this.elements.requestCount.textContent = requests.length;
+        
+        this.elements.requestsTableBody.innerHTML = requests.map(request => `
+            <tr class="border-b border-white/10 hover:bg-white/5 transition">
+                <td class="py-3 px-4">
+                    <div class="font-medium">${request.name}</div>
+                </td>
+                <td class="py-3 px-4">${request.phone || 'Not provided'}</td>
+                <td class="py-3 px-4">
+                    <span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm">
+                        ${request.reason}
+                    </span>
+                </td>
+                <td class="py-3 px-4">
+                    <div class="max-w-xs truncate" title="${request.message || 'No message'}">
+                        ${request.message || 'No message'}
+                    </div>
+                </td>
+                <td class="py-3 px-4">
+                    <div class="text-sm text-gray-300">
+                        ${new Date(request.requestedAt).toLocaleDateString()}
+                    </div>
+                </td>
+                <td class="py-3 px-4">
+                    <div class="flex gap-2 justify-center">
+                        <button onclick="volleyballAdmin.approveRequest('${request.id}')" class="bg-green-500 hover:bg-green-600 px-3 py-1 text-white rounded text-sm transition">
+                            <i class="fas fa-check mr-1"></i>Approve
+                        </button>
+                        <button onclick="volleyballAdmin.denyRequest('${request.id}')" class="bg-red-500 hover:bg-red-600 px-3 py-1 text-white rounded text-sm transition">
+                            <i class="fas fa-times mr-1"></i>Deny
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    approveRequest(requestId) {
+        const request = this.requests.find(r => r.id === requestId);
+        if (!request) return;
+        
+        // Create user account
+        const newUser = {
+            id: 'user-' + Date.now(),
+            name: request.name,
+            phone: request.phone || '',
+            role: this.getRoleFromReason(request.reason),
+            canCreateSessions: request.reason === 'creator' || request.reason === 'moderator',
+            addedAt: new Date().toISOString()
+        };
+        
+        // Add user to users list
+        this.users.push(newUser);
+        this.saveUsers();
+        
+        // Update request status
+        request.status = 'approved';
+        request.approvedAt = new Date().toISOString();
+        this.saveRequests();
+        
+        // Refresh displays
+        this.loadUsers();
+        this.loadRequests();
+        
+        this.showNotification(`Access request approved for ${request.name}! User account created.`, 'success');
+    }
+    
+    denyRequest(requestId) {
+        const requestIndex = this.requests.findIndex(r => r.id === requestId);
+        if (requestIndex === -1) return;
+        
+        const request = this.requests[requestIndex];
+        
+        // Update request status
+        request.status = 'denied';
+        request.deniedAt = new Date().toISOString();
+        this.saveRequests();
+        
+        // Refresh requests display
+        this.loadRequests();
+        
+        this.showNotification(`Access request denied for ${request.name}.`, 'info');
+    }
+    
+    getRoleFromReason(reason) {
+        switch (reason) {
+            case 'creator':
+                return 'admin';
+            case 'moderator':
+                return 'moderator';
+            default:
+                return 'user';
+        }
+    }
+    
+    saveRequests() {
+        localStorage.setItem('volleyball_requests', JSON.stringify(this.requests));
     }
 }
 

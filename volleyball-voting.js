@@ -118,6 +118,15 @@ class VolleyballVotingSystem {
                 localStorage.removeItem('volleyball_admin_login');
             }
         }
+        
+        // If not logged in, redirect to login page
+        if (!this.isLoggedIn) {
+            const currentUrl = window.location.pathname;
+            const loginUrl = `volleyball-login.html?redirect=${encodeURIComponent(currentUrl)}`;
+            if (currentUrl !== loginUrl && currentUrl !== '/volleyball-login.html') {
+                window.location.href = loginUrl;
+            }
+        }
     }
     
     loginWithCode(adminCode) {
@@ -154,11 +163,8 @@ class VolleyballVotingSystem {
     }
     
     canCreateSessions() {
-        if (!this.isLoggedIn) return false;
-        
-        return this.currentUser.role === 'admin' || 
-               this.currentUser.role === 'moderator' || 
-               this.currentUser.canCreateSessions;
+        // Simplified logic - always allow viewing and joining
+        return true;
     }
     
     updateCreateSessionButton() {
@@ -253,12 +259,22 @@ class VolleyballVotingSystem {
         const session = this.sessions.find(s => s.id === sessionId);
         if (!session) return;
         
-        const sessionDateTime = new Date(session.dateTime);
-        const now = new Date();
+        const player = session.players.find(p => p.id === playerId);
+        if (!player) return;
+        
+        const now = new Date().getTime();
+        const sessionDateTime = new Date(session.dateTime).getTime();
+        
         const hoursUntilSession = (sessionDateTime - now) / (1000 * 60 * 60);
         
         if (hoursUntilSession < 24) {
-            this.showNotification('Withdrawal is not permitted within 24 hours of the session', 'error');
+            this.showNotification('Withdrawal is not permitted within 24 hours of session', 'error');
+            return;
+        }
+        
+        // Add confirmation before withdrawal
+        const confirmWithdrawal = confirm(`Are you sure you want to withdraw from session ${session.number}? This action cannot be undone.`);
+        if (!confirmWithdrawal) {
             return;
         }
         
@@ -283,25 +299,41 @@ class VolleyballVotingSystem {
             const nextPlayer = session.waitingList.shift();
             session.players.push(nextPlayer);
             
-            this.showNotification(
-                `${removedPlayer.name} withdrew. ${nextPlayer.name} has been promoted from the waiting list!`,
-                'success'
-            );
-        } else {
-            this.showNotification('Successfully withdrawn from session', 'success');
-        }
-        
+            // Notify both players
         this.saveSessions();
         this.renderSessions();
     }
     
     deleteSession(sessionId) {
-        if (!confirm('Are you sure you want to delete this session?')) return;
+        const session = this.sessions.find(s => s.id === sessionId);
+        if (!session) return;
+        
+        if (!confirm(`Are you sure you want to delete session ${session.number}? This will remove all ${session.players.length} players from the session.`)) return;
         
         this.sessions = this.sessions.filter(s => s.id !== sessionId);
         this.saveSessions();
         this.renderSessions();
-        this.showNotification('Session deleted successfully', 'success');
+        
+        // Notify all players in the session
+        this.showNotification(`Session ${session.number} has been deleted by admin. All players have been removed.`, 'error');
+        
+        // Additional notification for affected players
+        setTimeout(() => {
+            session.players.forEach(player => {
+                this.showNotification(
+                    `⚠️ ${player.name}, session ${session.number} has been deleted. Please join a new session.`,
+                    'warning'
+                );
+                
+                // Send WhatsApp notification if phone available
+                if (player.phone) {
+                    this.sendWhatsAppNotification(
+                        player.phone,
+                        `🏐 Volleyball Alert: Session ${session.number} has been deleted. Please join a new session.`
+                    );
+                }
+            });
+        }, 500);
     }
     
     renderSessions() {
@@ -457,6 +489,15 @@ class VolleyballVotingSystem {
             notification.style.transition = 'opacity 0.5s';
             setTimeout(() => notification.remove(), 500);
         }, 3000);
+    }
+    
+    sendWhatsAppNotification(phone, message) {
+        const cleanPhone = phone.replace(/[^\d]/g, '');
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+        
+        window.open(whatsappUrl, '_blank');
+        this.showNotification('Opening WhatsApp to send notification...', 'info');
     }
     
     startCountdownTimer() {
