@@ -210,7 +210,14 @@ Volleyball Voting System`
             return;
         }
         
-        // Check access codes
+        // First check if user has individual access code
+        if (user.accessCode && user.accessCode === accessCode) {
+            // Successful login with individual access code
+            this.loginSuccess(user);
+            return;
+        }
+        
+        // Fallback to hardcoded admin codes for system admin
         const validCodes = {
             'volleyball2024': 'admin',
             'admin123': 'admin',
@@ -230,7 +237,7 @@ Volleyball Voting System`
             return;
         }
         
-        // Successful login
+        // Successful login with hardcoded access code
         this.loginSuccess(user);
     }
     

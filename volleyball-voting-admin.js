@@ -86,7 +86,22 @@ class VolleyballAdminSystem {
     loadUsers() {
         const stored = localStorage.getItem('volleyball_users');
         if (stored) {
-            return JSON.parse(stored);
+            const users = JSON.parse(stored);
+            
+            // Migrate existing users without access codes
+            let needsUpdate = false;
+            users.forEach(user => {
+                if (!user.accessCode && user.id !== 'admin-001') {
+                    user.accessCode = this.generateAccessCode(user.name);
+                    needsUpdate = true;
+                }
+            });
+            
+            if (needsUpdate) {
+                this.saveUsers(users);
+            }
+            
+            return users;
         }
         
         // Create default admin user
@@ -248,12 +263,16 @@ class VolleyballAdminSystem {
             return;
         }
         
+        // Generate access code for the new user
+        const accessCode = this.generateAccessCode(name);
+        
         const user = {
             id: 'user-' + Date.now(),
             name: name,
             phone: phone,
             role: role,
             canCreateSessions: role === 'admin' || role === 'moderator',
+            accessCode: accessCode,
             addedAt: new Date().toISOString(),
             addedBy: this.currentUser.name
         };
@@ -264,7 +283,7 @@ class VolleyballAdminSystem {
         this.closeModal('addUserModal');
         this.elements.addUserForm.reset();
         
-        this.showNotification(`User ${name} added successfully!`, 'success');
+        this.showNotification(`User ${name} added successfully! Access code: ${accessCode}`, 'success');
     }
     
     removeUser(userId) {
@@ -324,6 +343,7 @@ class VolleyballAdminSystem {
             const roleClass = `role-${user.role}`;
             const canCreate = user.canCreateSessions ? '✅ Yes' : '❌ No';
             const addedDate = new Date(user.addedAt).toLocaleDateString();
+            const accessCode = user.accessCode || (user.id === 'admin-001' ? 'System Admin' : 'Not Assigned');
             
             return `
                 <tr class="border-b border-white/10">
@@ -337,6 +357,18 @@ class VolleyballAdminSystem {
                     <td class="py-3 px-4">${user.phone || '-'}</td>
                     <td class="py-3 px-4">
                         <span class="user-role-badge ${roleClass}">${user.role}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <div class="flex items-center">
+                            <span class="font-mono text-xs bg-blue-500/20 px-2 py-1 rounded">${accessCode}</span>
+                            ${user.accessCode ? `
+                                <button onclick="volleyballAdmin.copyAccessCode('${user.accessCode}')" 
+                                        class="ml-2 text-blue-400 hover:text-blue-300"
+                                        title="Copy access code">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            ` : ''}
+                        </div>
                     </td>
                     <td class="py-3 px-4">${canCreate}</td>
                     <td class="py-3 px-4">${addedDate}</td>
@@ -726,6 +758,9 @@ class VolleyballAdminSystem {
         const request = this.requests.find(r => r.id === requestId);
         if (!request) return;
         
+        // Generate unique access code for the user
+        const accessCode = this.generateAccessCode(request.name);
+        
         // Create user account
         const newUser = {
             id: 'user-' + Date.now(),
@@ -733,7 +768,9 @@ class VolleyballAdminSystem {
             phone: request.phone || '',
             role: this.getRoleFromReason(request.reason),
             canCreateSessions: request.reason === 'creator' || request.reason === 'moderator',
-            addedAt: new Date().toISOString()
+            accessCode: accessCode,
+            addedAt: new Date().toISOString(),
+            addedBy: this.currentUser.name
         };
         
         // Add user to users list
@@ -743,13 +780,14 @@ class VolleyballAdminSystem {
         // Update request status
         request.status = 'approved';
         request.approvedAt = new Date().toISOString();
+        request.accessCode = accessCode;
         this.saveRequests();
         
         // Refresh displays
         this.loadUsers();
         this.loadRequests();
         
-        this.showNotification(`Access request approved for ${request.name}! User account created.`, 'success');
+        this.showNotification(`Access request approved for ${request.name}! User account created. Access code: ${accessCode}`, 'success');
     }
     
     denyRequest(requestId) {
@@ -767,6 +805,29 @@ class VolleyballAdminSystem {
         this.loadRequests();
         
         this.showNotification(`Access request denied for ${request.name}.`, 'info');
+    }
+    
+    copyAccessCode(accessCode) {
+        navigator.clipboard.writeText(accessCode).then(() => {
+            this.showNotification('Access code copied to clipboard!', 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = accessCode;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            this.showNotification('Access code copied to clipboard!', 'success');
+        });
+    }
+    
+    generateAccessCode(userName) {
+        // Generate a unique 8-character access code based on username and timestamp
+        const namePart = userName.substring(0, 3).toUpperCase();
+        const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const timestamp = Date.now().toString(36).substring(4, 6).toUpperCase();
+        return `${namePart}${randomPart}${timestamp}`;
     }
     
     getRoleFromReason(reason) {
